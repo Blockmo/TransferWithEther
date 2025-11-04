@@ -28,14 +28,25 @@ def check_connection(host: str, port: int, timeout: float = 3.0) -> tuple[bool, 
             return True, f"Successfully connected to {host}:{port}."
     except OSError as exc:  # pragma: no cover - network errors vary by platform
         return False, f"Connection failed: {exc}"  # type: ignore[str-bytes-safe]
-
-
 def _send_all(sock: socket.socket, data: bytes) -> None:
     """Send all bytes to the socket, retrying on interruptions."""
     view = memoryview(data)
     while view:
         sent = sock.send(view)
         view = view[sent:]
+
+
+def _recv_exact(sock: socket.socket, size: int) -> bytes:
+    """Receive exactly ``size`` bytes from ``sock``."""
+    chunks: list[bytes] = []
+    remaining = size
+    while remaining > 0:
+        chunk = sock.recv(remaining)
+        if not chunk:
+            raise ConnectionError("Connection closed before enough data was received")
+        chunks.append(chunk)
+        remaining -= len(chunk)
+    return b"".join(chunks)
 
 
 def send_file(
@@ -142,17 +153,10 @@ def receive_file(
             status_callback(f"Connected to sender {addr[0]}:{addr[1]}. Receiving file...")
 
         with conn:
-            header = conn.recv(_HEADER_STRUCT.size)
-            if len(header) < _HEADER_STRUCT.size:
-                raise ConnectionError("Incomplete header received")
+            header = _recv_exact(conn, _HEADER_STRUCT.size)
             name_len, file_size = _HEADER_STRUCT.unpack(header)
 
-            filename_bytes = b""
-            while len(filename_bytes) < name_len:
-                chunk = conn.recv(name_len - len(filename_bytes))
-                if not chunk:
-                    raise ConnectionError("Connection closed before filename was fully received")
-                filename_bytes += chunk
+            filename_bytes = _recv_exact(conn, name_len)
 
             filename = filename_bytes.decode("utf-8", errors="replace")
             target_path = destination / filename
