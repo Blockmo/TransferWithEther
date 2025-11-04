@@ -22,7 +22,7 @@ class FileTransferApp:
         self.root.resizable(True, True)
 
         self.mode_var = tk.StringVar(value="sender")
-        self.host_var = tk.StringVar(value="127.0.0.1")
+        self.host_var = tk.StringVar()
         self.port_var = tk.StringVar(value="5001")
         self.file_var = tk.StringVar()
         self.destination_var = tk.StringVar(value=str(os.getcwd()))
@@ -34,6 +34,7 @@ class FileTransferApp:
         self._ui_queue: queue.Queue[tuple[str, tuple]] = queue.Queue()
 
         self._build_ui()
+        self._refresh_ip_addresses(force_default=True)
         self._update_widget_state()
         self.root.after(100, self._process_ui_queue)
 
@@ -57,15 +58,18 @@ class FileTransferApp:
         connection_frame.columnconfigure(1, weight=1)
 
         ttk.Label(connection_frame, text="Host:").grid(row=0, column=0, sticky="e", padx=4, pady=4)
-        self.host_entry = ttk.Entry(connection_frame, textvariable=self.host_var)
-        self.host_entry.grid(row=0, column=1, sticky="we", padx=4, pady=4)
+        self.host_combobox = ttk.Combobox(connection_frame, textvariable=self.host_var)
+        self.host_combobox.grid(row=0, column=1, sticky="we", padx=4, pady=4)
 
-        ttk.Label(connection_frame, text="Port:").grid(row=0, column=2, sticky="e", padx=4, pady=4)
+        self.refresh_button = ttk.Button(connection_frame, text="Refresh", command=self._refresh_ip_addresses)
+        self.refresh_button.grid(row=0, column=2, padx=4, pady=4)
+
+        ttk.Label(connection_frame, text="Port:").grid(row=0, column=3, sticky="e", padx=4, pady=4)
         self.port_entry = ttk.Entry(connection_frame, textvariable=self.port_var, width=8)
-        self.port_entry.grid(row=0, column=3, sticky="w", padx=4, pady=4)
+        self.port_entry.grid(row=0, column=4, sticky="w", padx=4, pady=4)
 
         self.check_button = ttk.Button(connection_frame, text="Check Connection", command=self._check_connection)
-        self.check_button.grid(row=0, column=4, padx=4, pady=4)
+        self.check_button.grid(row=0, column=5, padx=4, pady=4)
 
         file_frame = ttk.LabelFrame(self.root, text="File Selection")
         file_frame.pack(fill="x", padx=12, pady=8)
@@ -133,7 +137,16 @@ class FileTransferApp:
         mode = self.mode_var.get()
         is_sender = mode == "sender"
 
-        self.host_entry.configure(state="normal" if is_sender else "disabled")
+        if is_sender:
+            self.host_combobox.configure(state="normal")
+        else:
+            self.host_combobox.configure(state="readonly")
+            available_values = self.host_combobox.cget("values")
+            if isinstance(available_values, str):
+                available_values = available_values.split()
+            if self.host_var.get() not in available_values:
+                self._refresh_ip_addresses(force_default=True)
+
         self.check_button.configure(state="normal" if is_sender else "disabled")
         self.file_entry.configure(state="normal" if is_sender else "disabled")
         self.browse_button.configure(state="normal" if is_sender else "disabled")
@@ -155,6 +168,20 @@ class FileTransferApp:
         except ValueError:
             messagebox.showerror("Invalid Port", "Please enter a port number between 1 and 65535.")
             return None
+
+    def _refresh_ip_addresses(self, force_default: bool = False) -> None:
+        addresses = network.get_local_ip_addresses()
+        if not addresses:
+            addresses = ["127.0.0.1"]
+
+        current_value = self.host_var.get().strip()
+        self.host_combobox.configure(values=addresses)
+
+        if not force_default and self.mode_var.get() != "sender" and current_value not in addresses:
+            force_default = True
+
+        if force_default or current_value not in addresses:
+            self.host_var.set(addresses[0])
 
     # ------------------------------------------------------------------ EVENT HANDLERS
     def _check_connection(self) -> None:
@@ -244,9 +271,10 @@ class FileTransferApp:
     # ------------------------------------------------------------------ WORKER MANAGEMENT
     def _disable_controls(self) -> None:
         for widget in (
-            self.host_entry,
+            self.host_combobox,
             self.port_entry,
             self.check_button,
+            self.refresh_button,
             self.file_entry,
             self.browse_button,
             self.destination_entry,
@@ -262,19 +290,20 @@ class FileTransferApp:
         self.cancel_button.configure(state="disabled")
 
         if self.mode_var.get() == "sender":
-            self.host_entry.configure(state="normal")
+            self.host_combobox.configure(state="normal")
             self.check_button.configure(state="normal")
             self.file_entry.configure(state="normal")
             self.browse_button.configure(state="normal")
             self.destination_entry.configure(state="disabled")
             self.destination_button.configure(state="disabled")
         else:
-            self.host_entry.configure(state="disabled")
+            self.host_combobox.configure(state="readonly")
             self.check_button.configure(state="disabled")
             self.file_entry.configure(state="disabled")
             self.browse_button.configure(state="disabled")
             self.destination_entry.configure(state="normal")
             self.destination_button.configure(state="normal")
+        self.refresh_button.configure(state="normal")
 
     def _send_worker(self, host: str, port: int, file_path: str, stop_event: threading.Event) -> None:
         try:

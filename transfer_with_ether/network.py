@@ -28,6 +28,40 @@ def check_connection(host: str, port: int, timeout: float = 3.0) -> tuple[bool, 
             return True, f"Successfully connected to {host}:{port}."
     except OSError as exc:  # pragma: no cover - network errors vary by platform
         return False, f"Connection failed: {exc}"  # type: ignore[str-bytes-safe]
+
+
+def get_local_ip_addresses(include_loopback: bool = True) -> list[str]:
+    """Return IPv4 addresses associated with the current host.
+
+    The list is deduplicated and sorted so that non-loopback addresses are
+    preferred. The loopback address (``127.0.0.1``) can optionally be removed.
+    """
+
+    addresses: set[str] = set()
+
+    try:
+        hostname = socket.gethostname()
+        _name, _alias, host_ips = socket.gethostbyname_ex(hostname)
+        addresses.update(ip for ip in host_ips if ip)
+    except socket.gaierror:
+        pass
+
+    try:
+        # Attempt to determine the default outbound IP address.
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+            probe.connect(("8.8.8.8", 80))
+            addresses.add(probe.getsockname()[0])
+    except OSError:
+        pass
+
+    if include_loopback:
+        addresses.add("127.0.0.1")
+    else:
+        addresses.discard("127.0.0.1")
+
+    # Filter out malformed entries and sort, prioritising non-loopback values.
+    valid_addresses = [ip for ip in addresses if ip.count(".") == 3]
+    return sorted(valid_addresses, key=lambda value: (value.startswith("127."), value))
 def _send_all(sock: socket.socket, data: bytes) -> None:
     """Send all bytes to the socket, retrying on interruptions."""
     view = memoryview(data)
