@@ -17,8 +17,9 @@ class FileTransferApp:
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
         self.root.title("TransferWithEther")
-        self.root.geometry("540x360")
-        self.root.resizable(False, False)
+        self.root.geometry("720x460")
+        self.root.minsize(640, 420)
+        self.root.resizable(True, True)
 
         self.mode_var = tk.StringVar(value="sender")
         self.host_var = tk.StringVar(value="127.0.0.1")
@@ -53,10 +54,11 @@ class FileTransferApp:
 
         connection_frame = ttk.LabelFrame(self.root, text="Connection")
         connection_frame.pack(fill="x", padx=12, pady=8)
+        connection_frame.columnconfigure(1, weight=1)
 
         ttk.Label(connection_frame, text="Host:").grid(row=0, column=0, sticky="e", padx=4, pady=4)
-        self.host_entry = ttk.Entry(connection_frame, textvariable=self.host_var, width=25)
-        self.host_entry.grid(row=0, column=1, sticky="w", padx=4, pady=4)
+        self.host_entry = ttk.Entry(connection_frame, textvariable=self.host_var)
+        self.host_entry.grid(row=0, column=1, sticky="we", padx=4, pady=4)
 
         ttk.Label(connection_frame, text="Port:").grid(row=0, column=2, sticky="e", padx=4, pady=4)
         self.port_entry = ttk.Entry(connection_frame, textvariable=self.port_var, width=8)
@@ -69,13 +71,15 @@ class FileTransferApp:
         file_frame.pack(fill="x", padx=12, pady=8)
 
         ttk.Label(file_frame, text="File:").grid(row=0, column=0, sticky="e", padx=4, pady=4)
-        self.file_entry = ttk.Entry(file_frame, textvariable=self.file_var, width=40)
+        file_frame.columnconfigure(1, weight=1)
+
+        self.file_entry = ttk.Entry(file_frame, textvariable=self.file_var)
         self.file_entry.grid(row=0, column=1, sticky="we", padx=4, pady=4)
         self.browse_button = ttk.Button(file_frame, text="Browse", command=self._select_file)
         self.browse_button.grid(row=0, column=2, padx=4, pady=4)
 
         ttk.Label(file_frame, text="Save to:").grid(row=1, column=0, sticky="e", padx=4, pady=4)
-        self.destination_entry = ttk.Entry(file_frame, textvariable=self.destination_var, width=40)
+        self.destination_entry = ttk.Entry(file_frame, textvariable=self.destination_var)
         self.destination_entry.grid(row=1, column=1, sticky="we", padx=4, pady=4)
         self.destination_button = ttk.Button(file_frame, text="Choose", command=self._select_destination)
         self.destination_button.grid(row=1, column=2, padx=4, pady=4)
@@ -96,7 +100,7 @@ class FileTransferApp:
         self.progress_bar = ttk.Progressbar(progress_frame, maximum=100.0, variable=self.progress_var)
         self.progress_bar.pack(fill="x", padx=8, pady=8)
 
-        self.status_label = ttk.Label(progress_frame, textvariable=self.status_var, wraplength=500, justify="left")
+        self.status_label = ttk.Label(progress_frame, textvariable=self.status_var, wraplength=660, justify="left")
         self.status_label.pack(fill="x", padx=8, pady=8)
 
     # ------------------------------------------------------------------ HELPERS
